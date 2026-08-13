@@ -68,7 +68,8 @@ class SchedulerConfig:
 
 @dataclass(frozen=True, slots=True)
 class CacheConfig:
-    block_size: int = 16
+    # FlashAttention-2 paged KV cache requires a page size divisible by 256.
+    block_size: int = 256
     gpu_memory_utilization: float = 0.9
     cache_dtype: str = "auto"
 

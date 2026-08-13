@@ -11,6 +11,13 @@ _SUPPORTED_DTYPES = frozenset(
     }
 )
 
+_DTYPE_ITEM_SIZES = {
+    "fp8": 1,
+    "float16": 2,
+    "bfloat16": 2,
+    "float32": 4,
+}
+
 _SUPPORTED_LAYOUTS = frozenset(
     {
         "block_major",
@@ -31,6 +38,30 @@ class KVCacheSpec:
     tensor_parallel_size: int
     tensor_parallel_rank: int
     model_revision: str
+
+    @property
+    def dtype_item_size(self) -> int:
+        """Number of bytes used by one scalar cache element."""
+
+        return _DTYPE_ITEM_SIZES[self.dtype]
+
+    @property
+    def bytes_per_block(self) -> int:
+        """Bytes occupied by one physical K/V block across every layer."""
+
+        return (
+            2
+            * self.num_layers
+            * self.block_size
+            * self.num_kv_heads
+            * self.head_dim
+            * self.dtype_item_size
+        )
+
+    def total_bytes(self, num_blocks: int) -> int:
+        """Return the tensor capacity required for ``num_blocks``."""
+
+        return num_blocks * self.bytes_per_block
 
     def __post_init__(self) -> None:
         self._validate_positive_dimension("block_size", self.block_size)
@@ -64,4 +95,3 @@ class KVCacheSpec:
     def _validate_positive_dimension(field_name: str, value: int) -> None:
         if value <= 0:
             raise ValueError(f"{field_name} must be greater than zero")
-

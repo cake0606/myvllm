@@ -29,6 +29,38 @@ def test_new_request_starts_in_waiting_prefill() -> None:
     assert request.is_prefill
     assert not request.is_decode
     assert not request.is_terminal
+    assert request.block_hashes == []
+
+
+def test_request_hashes_only_new_complete_blocks() -> None:
+    request = Request(
+        request_id="request-1",
+        prompt_token_ids=(1, 2, 3),
+        sampling_params=SamplingParams(max_tokens=16),
+    )
+
+    request.update_block_hashes(block_size=2)
+    first_hash = request.block_hashes[0]
+    request.update_block_hashes(block_size=2)
+
+    assert request.block_hashes == [first_hash]
+
+    request.append_output_token(4)
+    request.update_block_hashes(block_size=2)
+
+    assert len(request.block_hashes) == 2
+    assert request.block_hashes[0] == first_hash
+
+
+def test_reset_computed_tokens_after_preemption() -> None:
+    request = make_request(
+        status=RequestStatus.RUNNING,
+        num_computed_tokens=3,
+    )
+
+    request.reset_computed_tokens()
+
+    assert request.num_computed_tokens == 0
 
 
 def test_request_remains_prefill_until_entire_prompt_is_computed() -> None:

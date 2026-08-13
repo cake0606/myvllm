@@ -1,8 +1,10 @@
 """Request state and lifecycle definitions."""
 
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from enum import StrEnum
 
+from myvllm.cache.block import BlockHash, hash_block_tokens
 from myvllm.sampling_params import SamplingParams
 
 
@@ -72,6 +74,11 @@ class Request:
     output_token_ids: list[int] = field(default_factory=list)
     num_computed_tokens: int = 0
     status: RequestStatus = RequestStatus.WAITING
+    block_hashes: list[BlockHash] = field(
+        default_factory=list,
+        init=False,
+        repr=False,
+    )
 
     def __post_init__(self) -> None:
         if not self.request_id.strip():
@@ -91,6 +98,10 @@ class Request:
     @property
     def num_prompt_tokens(self) -> int:
         return len(self.prompt_token_ids)
+
+    @property
+    def all_token_ids(self) -> tuple[int, ...]:
+        return self.prompt_token_ids + tuple(self.output_token_ids)
 
     @property
     def num_output_tokens(self) -> int:
@@ -124,6 +135,34 @@ class Request:
         self._validate_progress(new_num_computed_tokens)
 
         self.num_computed_tokens = new_num_computed_tokens
+
+    def update_block_hashes(self, block_size: int) -> None:
+        """Append chained hashes for newly completed token blocks."""
+
+        if block_size <= 0:
+            raise ValueError("block_size must be greater than zero")
+
+        all_token_ids = self.all_token_ids
+        start = len(self.block_hashes) * block_size
+
+        parent_hash = self.block_hashes[-1] if self.block_hashes else None
+
+        while start + block_size <= len(all_token_ids):
+            end = start + block_size
+            block_token_ids: Sequence[int] = all_token_ids[start:end]
+
+            parent_hash = hash_block_tokens(
+                parent_hash=parent_hash,
+                token_ids=tuple(block_token_ids),
+            )
+
+            self.block_hashes.append(parent_hash)
+            start = end
+
+    def reset_computed_tokens(self) -> None:
+        """Reset model progress after all request KV blocks are released."""
+
+        self.num_computed_tokens = 0
 
     def append_output_token(self, token_id: int) -> None:
         if token_id < 0:

@@ -2,7 +2,23 @@ from dataclasses import fields
 
 import pytest
 
-from myvllm.cache.block import BlockHash, KVCacheBlock
+from myvllm.cache.block import BlockHash, KVCacheBlock, hash_block_tokens
+
+
+def test_block_hash_is_deterministic_and_chained() -> None:
+    first = hash_block_tokens(None, (1, 2))
+
+    assert first == hash_block_tokens(None, (1, 2))
+    assert first != hash_block_tokens(None, (2, 1))
+    assert hash_block_tokens(first, (3, 4)) != hash_block_tokens(None, (3, 4))
+
+
+def test_block_hash_rejects_empty_or_negative_tokens() -> None:
+    with pytest.raises(ValueError, match="empty"):
+        hash_block_tokens(None, ())
+
+    with pytest.raises(ValueError, match="negative"):
+        hash_block_tokens(None, (1, -1))
 
 
 def test_new_block_has_empty_metadata() -> None:
@@ -64,4 +80,3 @@ def test_block_uses_slots() -> None:
     assert not hasattr(block, "__dict__")
     with pytest.raises(AttributeError):
         block.unexpected_field = True  # type: ignore[attr-defined]
-

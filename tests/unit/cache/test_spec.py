@@ -34,6 +34,28 @@ def test_kv_cache_spec_fields() -> None:
 
 
 @pytest.mark.parametrize(
+    ("dtype", "expected_item_size"),
+    [
+        ("fp8", 1),
+        ("float16", 2),
+        ("bfloat16", 2),
+        ("float32", 4),
+    ],
+)
+def test_dtype_item_size(dtype: str, expected_item_size: int) -> None:
+    assert replace(make_spec(), dtype=dtype).dtype_item_size == expected_item_size
+
+
+def test_kv_cache_capacity_in_bytes() -> None:
+    spec = make_spec()
+
+    expected_bytes_per_block = 2 * 28 * 16 * 4 * 128 * 2
+
+    assert spec.bytes_per_block == expected_bytes_per_block
+    assert spec.total_bytes(num_blocks=10) == 10 * expected_bytes_per_block
+
+
+@pytest.mark.parametrize(
     "field_name",
     ["block_size", "num_layers", "num_kv_heads", "head_dim"],
 )

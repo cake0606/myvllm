@@ -1,10 +1,39 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from hashlib import sha256
 from typing import NewType
 
 BlockHash = NewType("BlockHash", bytes)
+_HASH_VERSION = b"myvllm-prefix-cache-v1"
 
+
+def hash_block_tokens(
+    parent_hash: BlockHash | None,
+    token_ids: tuple[int, ...],
+) -> BlockHash:
+    """Hash one complete token block and its preceding prefix."""
+
+    if not token_ids:
+        raise ValueError("token_ids must not be empty")
+
+    hasher = sha256()
+    hasher.update(_HASH_VERSION)
+
+    if parent_hash is None:
+        hasher.update(b"\x00")
+    else:
+        hasher.update(b"\x01")
+        hasher.update(parent_hash)
+
+    for token_id in token_ids:
+        if token_id < 0:
+            raise ValueError("token IDs cannot be negative")
+
+        # Fixed-width encoding makes adjacent token IDs unambiguous.
+        hasher.update(token_id.to_bytes(4, byteorder="big", signed=False))
+
+    return BlockHash(hasher.digest())
 
 @dataclass(slots=True, eq=False)
 class KVCacheBlock:
@@ -63,4 +92,3 @@ class KVCacheBlock:
 
         self._block_hash = None
         self._block_hash_num_tokens = None
-

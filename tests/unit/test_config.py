@@ -83,7 +83,7 @@ def test_scheduler_config_rejects_invalid_sequence_limit(
 def test_cache_config_defaults() -> None:
     config = CacheConfig()
 
-    assert config.block_size == 16
+    assert config.block_size == 256
     assert config.gpu_memory_utilization == 0.9
     assert config.cache_dtype == "auto"
 
